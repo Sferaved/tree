@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from docx import Document
+from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -51,9 +52,9 @@ def add_paragraph(doc, text="", bold=False, align="justify", first_line=True):
     return p
 
 
-def add_heading(doc, text, level=1):
+def add_heading(doc, text, level=1, align="left"):
     p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER if level == 1 else WD_ALIGN_PARAGRAPH.LEFT
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER if align == "center" else WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.line_spacing = 1.5
     p.paragraph_format.space_after = Pt(0)
     run = p.add_run(text.upper() if level == 1 else text)
@@ -61,6 +62,15 @@ def add_heading(doc, text, level=1):
     run.font.size = Pt(14)
     run.bold = True
     return p
+
+
+def restart_page_numbering(section, start=1):
+    sect_pr = section._sectPr
+    pg_num_type = sect_pr.find(qn("w:pgNumType"))
+    if pg_num_type is None:
+        pg_num_type = OxmlElement("w:pgNumType")
+        sect_pr.append(pg_num_type)
+    pg_num_type.set(qn("w:start"), str(start))
 
 
 def add_page_number(section):
@@ -74,28 +84,30 @@ def add_page_number(section):
 
 def make_title(doc, title, subtitle=None):
     for line in [
-        "Міністерство освіти і науки України",
-        "Національний технічний університет «Харківський політехнічний інститут»",
-        "Кафедра безпеки праці та навколишнього середовища",
+        "МІНІСТЕРСТВО НАУКИ І ОСВІТИ УКРАЇНИ",
+        "НАЦІОНАЛЬНИЙ ТЕХНІЧНИЙ УНІВЕРСИТЕТ",
+        "«ХАРКІВСЬКИЙ ПОЛІТЕХНІЧНИЙ ІНСТИТУТ»",
+        "Кафедра «Безпека праці та навколишнього середовища»",
+        "Безпека праці та професійної діяльності",
     ]:
         add_paragraph(doc, line, align="center", first_line=False)
-    for _ in range(5):
+    for _ in range(3):
         add_paragraph(doc, "", align="center", first_line=False)
     add_paragraph(doc, "Реферат", bold=True, align="center", first_line=False)
-    add_paragraph(doc, "з дисципліни «Безпека праці та професійної діяльності»", align="center", first_line=False)
-    add_paragraph(doc, "на тему:", align="center", first_line=False)
-    add_paragraph(doc, f"«{title}»", bold=True, align="center", first_line=False)
+    add_paragraph(doc, title, bold=True, align="center", first_line=False)
     if subtitle:
         add_paragraph(doc, subtitle, align="center", first_line=False)
     for _ in range(5):
         add_paragraph(doc, "", align="center", first_line=False)
-    add_paragraph(doc, "Виконав: студент групи ____________", align="right", first_line=False)
-    add_paragraph(doc, "ПІБ ______________________________", align="right", first_line=False)
-    add_paragraph(doc, "Перевірив: ________________________", align="right", first_line=False)
-    for _ in range(5):
+    add_paragraph(doc, "Виконав: студент гр.", align="right", first_line=False)
+    add_paragraph(doc, "МІТ-М625 М. А. Коржов", align="right", first_line=False)
+    add_paragraph(doc, "Перевірив: професор", align="right", first_line=False)
+    add_paragraph(doc, "Мезенцева І. О.", align="right", first_line=False)
+    for _ in range(3):
         add_paragraph(doc, "", align="center", first_line=False)
-    add_paragraph(doc, "Харків 2026", align="center", first_line=False)
-    doc.add_page_break()
+    add_paragraph(doc, "Харків", align="center", first_line=False)
+    add_paragraph(doc, "НТУ «ХПІ»", align="center", first_line=False)
+    add_paragraph(doc, "2026", align="center", first_line=False)
 
 
 sections = [
@@ -287,23 +299,43 @@ speech_paragraphs = [
 def build_report():
     doc = Document()
     set_doc_style(doc)
-    add_page_number(doc.sections[0])
     make_title(doc, "Організація охорони праці на ливарному виробництві")
-    add_heading(doc, "Зміст")
-    content_items = ["Вступ"] + [title for title, _ in sections[1:]]
-    content_items += ["Список використаних джерел"]
-    for item in content_items:
-        add_paragraph(doc, item + " ........................................................................", first_line=False)
-    doc.add_page_break()
-    for idx, (title, paragraphs) in enumerate(sections):
-        if idx > 0 and idx % 2 == 1:
-            doc.add_page_break()
-        add_heading(doc, title)
+    main_section = doc.add_section(WD_SECTION.NEW_PAGE)
+    main_section.footer.is_linked_to_previous = False
+    restart_page_numbering(main_section, 1)
+    add_page_number(main_section)
+
+    add_heading(doc, "Зміст", align="center")
+    content_items = [
+        ("ВСТУП", "1"),
+        ("1. НОРМАТИВНО-ПРАВОВА БАЗА ОХОРОНИ ПРАЦІ У ЛИВАРНОМУ ВИРОБНИЦТВІ", "2"),
+        ("2. ХАРАКТЕРИСТИКА ЛИВАРНОГО ВИРОБНИЦТВА ЯК ОБ'ЄКТА ПІДВИЩЕНОЇ НЕБЕЗПЕКИ", "3"),
+        ("3. ОСНОВНІ НЕБЕЗПЕЧНІ ТА ШКІДЛИВІ ВИРОБНИЧІ ФАКТОРИ", "4"),
+        ("4. СИСТЕМА УПРАВЛІННЯ ОХОРОНОЮ ПРАЦІ НА ЛИВАРНОМУ ПІДПРИЄМСТВІ", "5"),
+        ("5. ОЦІНКА ПРОФЕСІЙНИХ РИЗИКІВ І АТЕСТАЦІЯ РОБОЧИХ МІСЦЬ", "6"),
+        ("6. ОРГАНІЗАЦІЯ БЕЗПЕЧНИХ ТЕХНОЛОГІЧНИХ ПРОЦЕСІВ", "7"),
+        ("7. ВИРОБНИЧА САНІТАРІЯ, ВЕНТИЛЯЦІЯ ТА МІКРОКЛІМАТ", "8"),
+        ("8. ПОЖЕЖНА, ВИБУХОВА ТА ЕЛЕКТРОБЕЗПЕКА", "9"),
+        ("9. ЗАСОБИ КОЛЕКТИВНОГО ТА ІНДИВІДУАЛЬНОГО ЗАХИСТУ", "10"),
+        ("10. НАВЧАННЯ, ІНСТРУКТАЖІ ТА ДОПУСК ДО РОБІТ", "11"),
+        ("11. МЕДИЧНІ ОГЛЯДИ, РЕЖИМ ПРАЦІ ТА ПРОФІЛАКТИКА ПРОФЕСІЙНИХ ЗАХВОРЮВАНЬ", "12"),
+        ("12. АВАРІЙНА ГОТОВНІСТЬ І ПЕРША ДОПОМОГА", "13"),
+        ("13. НАПРЯМИ УДОСКОНАЛЕННЯ ОРГАНІЗАЦІЇ ОХОРОНИ ПРАЦІ", "14"),
+        ("14. ДОКУМЕНТАЦІЯ ТА КОНТРОЛЬ СТАНУ ОХОРОНИ ПРАЦІ", "14"),
+        ("15. ОРГАНІЗАЦІЯ РОБОЧИХ МІСЦЬ І ВИРОБНИЧОЇ ЛОГІСТИКИ", "16"),
+        ("16. ТИПОВІ ПОРУШЕННЯ ТА ПРОФІЛАКТИЧНІ ЗАХОДИ", "17"),
+        ("17. ОРІЄНТОВНИЙ ПЛАН ЗАХОДІВ З ПОЛІПШЕННЯ ОХОРОНИ ПРАЦІ", "18"),
+        ("ВИСНОВКИ", "19"),
+        ("СПИСОК ВИКОРИСТАНИХ ДЖЕРЕЛ", "20"),
+    ]
+    for item, page in content_items:
+        add_paragraph(doc, f"{item}\t{page}", first_line=False)
+
+    for title, paragraphs in sections:
+        add_heading(doc, title, align="left")
         for text in paragraphs:
             add_paragraph(doc, text)
-        if title not in {"Вступ", "Висновки"}:
-            add_paragraph(doc, "")
-    add_heading(doc, "Список використаних джерел")
+    add_heading(doc, "Список використаних джерел", align="left")
     for idx, source in enumerate(sources, 1):
         add_paragraph(doc, f"{idx}. {source}", first_line=False)
     doc.save(REPORT)
